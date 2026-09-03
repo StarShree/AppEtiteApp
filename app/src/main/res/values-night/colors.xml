@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark Mode Brand Palette -->
+    <color name="primary">#857DFF</color>
+    <color name="primary_dark">#635BFF</color>
+    <color name="primary_light">#A59FFF</color>
+    <color name="primary_container">#28244E</color>
+    <color name="on_primary">#FFFFFF</color>
+    <color name="on_primary_container">#D9D6FF</color>
+
+    <color name="secondary">#34D399</color>
+    <color name="secondary_container">#064E3B</color>
+    <color name="on_secondary">#064E3B</color>
+    <color name="on_secondary_container">#A7F3D0</color>
+
+    <color name="accent_gold">#FBBF24</color>
+    <color name="accent_gold_light">#451A03</color>
+    <color name="token_orange">#F97316</color>
+    <color name="token_orange_dark">#EA580C</color>
+
+    <!-- Dark Canvas & Surface -->
+    <color name="background">#0F1117</color>
+    <color name="surface">#1A1D27</color>
+    <color name="surface_variant">#242938</color>
+    <color name="surface_card">#1A1D27</color>
+    <color name="on_surface">#F8FAFC</color>
+    <color name="on_surface_variant">#94A3B8</color>
+    <color name="text_tertiary">#64748B</color>
+    <color name="outline">#2E3449</color>
+    <color name="outline_light">#242938</color>
+    <color name="divider">#242938</color>
+
+    <!-- Ticket Dark Pass Color in Dark Mode -->
+    <color name="pass_dark_bg">#0B0D13</color>
+    <color name="pass_dark_surface">#141722</color>
+
+    <!-- Order Status Indicators for Dark Mode -->
+    <color name="status_placed_bg">#3D1F08</color>
+    <color name="status_placed_text">#FB923C</color>
+    <color name="status_placed_border">#7C2D12</color>
+
+    <color name="status_preparing_bg">#1E1B4B</color>
+    <color name="status_preparing_text">#A5B4FC</color>
+    <color name="status_preparing_border">#3730A3</color>
+
+    <color name="status_ready_bg">#064E3B</color>
+    <color name="status_ready_text">#6EE7B7</color>
+    <color name="status_ready_border">#047857</color>
+
+    <color name="status_completed_bg">#1E293B</color>
+    <color name="status_completed_text">#94A3B8</color>
+    <color name="status_completed_border">#334155</color>
+
+    <color name="status_cancelled_bg">#450A0A</color>
+    <color name="status_cancelled_text">#FCA5A5</color>
+
+    <color name="white">#FFFFFF</color>
+    <color name="black">#000000</color>
+    <color name="transparent">#00000000</color>
+    <color name="shadow_color">#40000000</color>
+</resources>

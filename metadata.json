@@ -1,0 +1,6 @@
+{
+  "name": "AppEtite",
+  "description": "Smart Canteen Ordering & Management System with role-based access for Customers, Kitchen Staff, College Admins, and Super Admins.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
