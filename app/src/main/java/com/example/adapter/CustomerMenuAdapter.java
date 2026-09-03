@@ -1,5 +1,7 @@
 package com.example.adapter;
 
+import android.content.res.ColorStateList;
+import android.graphics.Color;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -101,7 +103,7 @@ public class CustomerMenuAdapter extends RecyclerView.Adapter<CustomerMenuAdapte
 
     class MenuViewHolder extends RecyclerView.ViewHolder {
         ShapeableImageView ivItemImage;
-        TextView tvItemName, tvItemCategory, tvItemDescription, tvItemPrice, tvQuantity;
+        TextView tvItemName, tvItemCategory, tvItemDescription, tvItemPrice, tvQuantity, tvItemUnavailableBadge;
         MaterialButton btnAddToCart;
         LinearLayout layoutQuantityControls;
         ImageButton btnMinus, btnPlus;
@@ -114,6 +116,7 @@ public class CustomerMenuAdapter extends RecyclerView.Adapter<CustomerMenuAdapte
             tvItemDescription = itemView.findViewById(R.id.tvItemDescription);
             tvItemPrice = itemView.findViewById(R.id.tvItemPrice);
             tvQuantity = itemView.findViewById(R.id.tvQtyValue);
+            tvItemUnavailableBadge = itemView.findViewById(R.id.tvItemUnavailableBadge);
             btnAddToCart = itemView.findViewById(R.id.btnAddToCart);
             layoutQuantityControls = itemView.findViewById(R.id.layoutQuantityControls);
             btnMinus = itemView.findViewById(R.id.btnQtyMinus);
@@ -142,10 +145,36 @@ public class CustomerMenuAdapter extends RecyclerView.Adapter<CustomerMenuAdapte
                 ivItemImage.setImageResource(R.drawable.ic_launcher_background);
             }
 
-            int qty = cartMap.containsKey(item.getItemId()) ? cartMap.get(item.getItemId()) : 0;
-            updateQuantityUI(qty);
+            boolean isAvailable = item.isAvailable();
+            if (!isAvailable) {
+                itemView.setAlpha(0.60f);
+                if (tvItemUnavailableBadge != null) {
+                    tvItemUnavailableBadge.setVisibility(View.VISIBLE);
+                }
+                layoutQuantityControls.setVisibility(View.GONE);
+                btnAddToCart.setVisibility(View.VISIBLE);
+                btnAddToCart.setText("Sold Out");
+                btnAddToCart.setEnabled(false);
+                btnAddToCart.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor("#94A3B8")));
+                if (cartMap.containsKey(item.getItemId())) {
+                    cartMap.remove(item.getItemId());
+                    notifyCartUpdated();
+                }
+            } else {
+                itemView.setAlpha(1.0f);
+                if (tvItemUnavailableBadge != null) {
+                    tvItemUnavailableBadge.setVisibility(View.GONE);
+                }
+                btnAddToCart.setEnabled(true);
+                btnAddToCart.setText("+ ADD");
+                btnAddToCart.setBackgroundTintList(ColorStateList.valueOf(itemView.getContext().getResources().getColor(R.color.primary)));
+
+                int qty = cartMap.containsKey(item.getItemId()) ? cartMap.get(item.getItemId()) : 0;
+                updateQuantityUI(qty);
+            }
 
             btnAddToCart.setOnClickListener(v -> {
+                if (!item.isAvailable()) return;
                 int newQty = 1;
                 cartMap.put(item.getItemId(), newQty);
                 updateQuantityUI(newQty);
@@ -153,6 +182,7 @@ public class CustomerMenuAdapter extends RecyclerView.Adapter<CustomerMenuAdapte
             });
 
             btnPlus.setOnClickListener(v -> {
+                if (!item.isAvailable()) return;
                 int currentQty = cartMap.getOrDefault(item.getItemId(), 0);
                 int newQty = currentQty + 1;
                 cartMap.put(item.getItemId(), newQty);

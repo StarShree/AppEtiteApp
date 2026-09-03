@@ -96,6 +96,10 @@ public class OrderDao {
         String orderNum = "ORD-" + ((int) (Math.random() * 9000) + 1000);
         order.setOrderNumber(orderNum);
 
+        if (order.getCanteenId() != null) {
+            order.setCanteenId(mapCanteenIdToDb(order.getCanteenId()));
+        }
+
         // Build items summary
         if (items != null && !items.isEmpty()) {
             order.setItems(items);
@@ -172,29 +176,57 @@ public class OrderDao {
         return s == null || s.trim().isEmpty();
     }
 
+    public static String mapCanteenIdToDb(String id) {
+        if (id == null) return "cant_1";
+        String u = id.trim().toLowerCase();
+        if (u.equals("canteen_1_1") || u.equals("cant_1_1") || u.equals("canteen_1")) return "cant_1";
+        if (u.equals("canteen_1_2") || u.equals("cant_1_2") || u.equals("canteen_2")) return "cant_2";
+        if (u.equals("canteen_2_1") || u.equals("cant_2_1") || u.equals("canteen_3")) return "cant_3";
+        if (u.equals("canteen_2_2") || u.equals("cant_2_2") || u.equals("canteen_4")) return "cant_4";
+        if (u.equals("canteen_3_1") || u.equals("cant_3_1") || u.equals("canteen_5")) return "cant_5";
+        if (u.equals("canteen_3_2") || u.equals("cant_3_2") || u.equals("canteen_6")) return "cant_6";
+        return id;
+    }
+
     public List<Order> getCustomerOrders(int userId, String userIdStr) {
+        return getCustomerOrders(userId, userIdStr, null);
+    }
+
+    public List<Order> getCustomerOrders(int userId) {
+        return getCustomerOrders(userId, "user_" + userId, null);
+    }
+
+    public List<Order> getCustomerOrders(int userId, String userIdStr, String userName) {
         List<Order> orders = new ArrayList<>();
-        String sql = "SELECT * FROM orders WHERE user_id = ? OR user_id = ? OR user_id = ? ORDER BY order_timestamp DESC, created_at DESC";
+        String sql = "SELECT * FROM orders WHERE " +
+                "user_id = ? OR user_id = ? OR user_id = ? OR user_id = ? OR user_id = ? " +
+                "OR user_name = ? OR user_id LIKE ? " +
+                "ORDER BY order_timestamp DESC, created_at DESC";
 
         try {
             Connection conn = DBConnection.getInstance().getConnection();
-            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-                stmt.setString(1, userIdStr != null ? userIdStr : "user_" + userId);
-                stmt.setString(2, "user_" + userId);
-                stmt.setString(3, String.valueOf(userId));
-                try (ResultSet rs = stmt.executeQuery()) {
-                    while (rs.next()) {
-                        Order o = mapOrderFromResultSet(rs);
-                        orders.add(o);
-                    }
-                    if (!orders.isEmpty()) {
-                        // Sync into local data store as well
-                        for (Order o : orders) {
-                            try {
-                                LocalDataStore.getInstance().updateOrderStatus(o.getOrderId(), o.getOrderStatus());
-                            } catch (Exception ignored) {}
+            if (conn != null && !conn.isClosed()) {
+                try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+                    stmt.setString(1, userIdStr != null ? userIdStr : "user_" + userId);
+                    stmt.setString(2, "user_" + userId);
+                    stmt.setString(3, "user_campus_" + userId);
+                    stmt.setString(4, "user_student_" + userId);
+                    stmt.setString(5, String.valueOf(userId));
+                    stmt.setString(6, userName != null ? userName : "");
+                    stmt.setString(7, "%_" + userId);
+                    try (ResultSet rs = stmt.executeQuery()) {
+                        while (rs.next()) {
+                            Order o = mapOrderFromResultSet(rs);
+                            orders.add(o);
                         }
-                        return orders;
+                        if (!orders.isEmpty()) {
+                            for (Order o : orders) {
+                                try {
+                                    LocalDataStore.getInstance().createOrUpdateOrder(o);
+                                } catch (Exception ignored) {}
+                            }
+                            return orders;
+                        }
                     }
                 }
             }
@@ -202,11 +234,7 @@ public class OrderDao {
             Log.w(TAG, "Cloud SQL getCustomerOrders failed: " + e.getMessage());
         }
 
-        return LocalDataStore.getInstance().getCustomerOrders(userId);
-    }
-
-    public List<Order> getCustomerOrders(int userId) {
-        return getCustomerOrders(userId, "user_" + userId);
+        return LocalDataStore.getInstance().getCustomerOrders(userId, userIdStr, userName);
     }
 
     public List<Order> getOrdersByCollege(int collegeId) {
@@ -220,17 +248,21 @@ public class OrderDao {
     public List<Order> getOrdersByCanteenAndStatus(String canteenId, int collegeId, String status) {
         List<Order> orders = new ArrayList<>();
         boolean hasStatus = status != null && !status.equalsIgnoreCase("ALL");
-        boolean hasCanteen = canteenId != null && !canteenId.trim().isEmpty();
+        boolean hasCanteen = canteenId != null && !canteenId.trim().isEmpty() && !canteenId.equalsIgnoreCase("ALL");
 
         String shortCode = com.example.model.College.toShortCode(null, collegeId, null);
+        String colPref = "col_" + collegeId;
+        String colNum = String.valueOf(collegeId);
+        String cantMapped = mapCanteenIdToDb(canteenId);
+
         StringBuilder sql = new StringBuilder("SELECT * FROM orders WHERE (college_id = ? OR college_id = ? OR college_id = ?)");
         if (hasCanteen) {
-            sql.append(" AND (canteen_id = ? OR canteen_id = ? OR canteen_name = ?)");
+            sql.append(" AND (canteen_id = ? OR canteen_id = ? OR canteen_id = ? OR canteen_id = ? OR canteen_name LIKE ?)");
         }
         if (hasStatus) {
             sql.append(" AND order_status = ?");
         }
-        sql.append(" ORDER BY order_timestamp DESC");
+        sql.append(" ORDER BY order_timestamp DESC, created_at DESC");
 
         try {
             Connection conn = DBConnection.getInstance().getConnection();
@@ -238,12 +270,14 @@ public class OrderDao {
                 try (PreparedStatement stmt = conn.prepareStatement(sql.toString())) {
                     int paramIdx = 1;
                     stmt.setString(paramIdx++, shortCode);
-                    stmt.setString(paramIdx++, "col_" + collegeId);
-                    stmt.setString(paramIdx++, String.valueOf(collegeId));
+                    stmt.setString(paramIdx++, colPref);
+                    stmt.setString(paramIdx++, colNum);
                     if (hasCanteen) {
                         stmt.setString(paramIdx++, canteenId);
+                        stmt.setString(paramIdx++, cantMapped != null ? cantMapped : canteenId);
                         stmt.setString(paramIdx++, canteenId.replace("canteen_", "cant_"));
-                        stmt.setString(paramIdx++, canteenId);
+                        stmt.setString(paramIdx++, "cant_" + collegeId);
+                        stmt.setString(paramIdx++, "%" + canteenId + "%");
                     }
                     if (hasStatus) {
                         stmt.setString(paramIdx++, toDbStatus(status));
@@ -252,10 +286,24 @@ public class OrderDao {
                         while (rs.next()) {
                             orders.add(mapOrderFromResultSet(rs));
                         }
-                        if (!orders.isEmpty()) {
-                            return orders;
-                        }
                     }
+                }
+
+                // If specific canteen returned no orders, fall back to college orders
+                if (orders.isEmpty() && hasCanteen) {
+                    List<Order> byCollege = getOrdersByCollegeAndStatus(collegeId, status);
+                    if (!byCollege.isEmpty()) {
+                        return byCollege;
+                    }
+                }
+
+                if (!orders.isEmpty()) {
+                    for (Order o : orders) {
+                        try {
+                            LocalDataStore.getInstance().createOrUpdateOrder(o);
+                        } catch (Exception ignored) {}
+                    }
+                    return orders;
                 }
             }
         } catch (Exception e) {
@@ -271,24 +319,30 @@ public class OrderDao {
         String shortCode = com.example.model.College.toShortCode(null, collegeId, null);
         String sql = "SELECT * FROM orders WHERE (college_id = ? OR college_id = ? OR college_id = ?)"
                 + (hasStatus ? " AND order_status = ?" : "")
-                + " ORDER BY order_timestamp DESC";
+                + " ORDER BY order_timestamp DESC, created_at DESC";
 
         try {
             Connection conn = DBConnection.getInstance().getConnection();
-            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-                stmt.setString(1, shortCode);
-                stmt.setString(2, "col_" + collegeId);
-                stmt.setString(3, String.valueOf(collegeId));
-                if (hasStatus) {
-                    stmt.setString(4, toDbStatus(status));
-                }
-                try (ResultSet rs = stmt.executeQuery()) {
-                    while (rs.next()) {
-                        Order o = mapOrderFromResultSet(rs);
-                        orders.add(o);
+            if (conn != null && !conn.isClosed()) {
+                try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+                    stmt.setString(1, shortCode);
+                    stmt.setString(2, "col_" + collegeId);
+                    stmt.setString(3, String.valueOf(collegeId));
+                    if (hasStatus) {
+                        stmt.setString(4, toDbStatus(status));
                     }
-                    if (!orders.isEmpty()) {
-                        return orders;
+                    try (ResultSet rs = stmt.executeQuery()) {
+                        while (rs.next()) {
+                            orders.add(mapOrderFromResultSet(rs));
+                        }
+                        if (!orders.isEmpty()) {
+                            for (Order o : orders) {
+                                try {
+                                    LocalDataStore.getInstance().createOrUpdateOrder(o);
+                                } catch (Exception ignored) {}
+                            }
+                            return orders;
+                        }
                     }
                 }
             }
@@ -301,17 +355,24 @@ public class OrderDao {
 
     public List<Order> getAllOrders() {
         List<Order> orders = new ArrayList<>();
-        String sql = "SELECT * FROM orders ORDER BY order_timestamp DESC";
+        String sql = "SELECT * FROM orders ORDER BY order_timestamp DESC, created_at DESC";
 
         try {
             Connection conn = DBConnection.getInstance().getConnection();
-            try (PreparedStatement stmt = conn.prepareStatement(sql);
-                 ResultSet rs = stmt.executeQuery()) {
-                while (rs.next()) {
-                    orders.add(mapOrderFromResultSet(rs));
-                }
-                if (!orders.isEmpty()) {
-                    return orders;
+            if (conn != null && !conn.isClosed()) {
+                try (PreparedStatement stmt = conn.prepareStatement(sql);
+                     ResultSet rs = stmt.executeQuery()) {
+                    while (rs.next()) {
+                        orders.add(mapOrderFromResultSet(rs));
+                    }
+                    if (!orders.isEmpty()) {
+                        for (Order o : orders) {
+                            try {
+                                LocalDataStore.getInstance().createOrUpdateOrder(o);
+                            } catch (Exception ignored) {}
+                        }
+                        return orders;
+                    }
                 }
             }
         } catch (Exception e) {
@@ -329,29 +390,25 @@ public class OrderDao {
 
         try {
             Connection conn = DBConnection.getInstance().getConnection();
-            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-                stmt.setString(1, dbStatus);
-                stmt.setString(2, idString != null ? idString : "");
-                stmt.setString(3, orderNumber != null ? orderNumber : "");
-                stmt.setString(4, orderNumber != null ? ("ORD-" + orderNumber.replace("ORD-", "")) : "");
-                stmt.setString(5, tokenNumber != null ? tokenNumber : "");
-                stmt.setString(6, tokenNumber != null ? ("T-" + tokenNumber.replaceAll("[^0-9]", "")) : "");
-                int affected = stmt.executeUpdate();
-                successInCloud = affected > 0;
-                Log.d(TAG, "updateOrderStatus executed in Cloud SQL: affected=" + affected + ", status=" + dbStatus + " for token=" + tokenNumber + ", ordNum=" + orderNumber);
+            if (conn != null && !conn.isClosed()) {
+                try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+                    stmt.setString(1, dbStatus);
+                    stmt.setString(2, idString != null ? idString : "");
+                    stmt.setString(3, orderNumber != null ? orderNumber : "");
+                    stmt.setString(4, orderNumber != null ? ("ORD-" + orderNumber.replace("ORD-", "")) : "");
+                    stmt.setString(5, tokenNumber != null ? tokenNumber : "");
+                    stmt.setString(6, tokenNumber != null ? ("T-" + tokenNumber.replaceAll("[^0-9]", "")) : "");
+                    int affected = stmt.executeUpdate();
+                    successInCloud = affected > 0;
+                    Log.d(TAG, "updateOrderStatus executed in Cloud SQL: affected=" + affected + ", status=" + dbStatus + " for token=" + tokenNumber + ", ordNum=" + orderNumber);
+                }
             }
         } catch (Exception e) {
             Log.w(TAG, "Cloud SQL updateOrderStatus failed: " + e.getMessage());
         }
 
         // Keep local cache in sync
-        try {
-            String candidate = orderNumber != null ? orderNumber : (idString != null ? idString : tokenNumber);
-            if (candidate != null) {
-                int num = Integer.parseInt(candidate.replaceAll("\\D+", ""));
-                LocalDataStore.getInstance().updateOrderStatus(num, newStatus);
-            }
-        } catch (Exception ignored) {}
+        LocalDataStore.getInstance().updateOrderStatus(idString, orderNumber, tokenNumber, newStatus);
 
         return successInCloud;
     }

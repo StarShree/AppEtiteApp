@@ -5,7 +5,9 @@ import java.math.BigDecimal;
 
 public class MenuItem implements Serializable {
     private int itemId;
+    private String idString;
     private int collegeId;
+    private String canteenId;
     private String name;
     private String description;
     private BigDecimal price;
@@ -19,6 +21,11 @@ public class MenuItem implements Serializable {
     }
 
     public MenuItem(int itemId, int collegeId, String name, String description, BigDecimal price, String category, String imageUrl, boolean isAvailable) {
+        this(String.format("item_%02d", itemId), itemId, collegeId, name, description, price, category, imageUrl, isAvailable);
+    }
+
+    public MenuItem(String idString, int itemId, int collegeId, String name, String description, BigDecimal price, String category, String imageUrl, boolean isAvailable) {
+        this.idString = idString;
         this.itemId = itemId;
         this.collegeId = collegeId;
         this.name = name;
@@ -27,6 +34,25 @@ public class MenuItem implements Serializable {
         this.category = category;
         this.imageUrl = imageUrl;
         this.isAvailable = isAvailable;
+    }
+
+    public String getIdString() {
+        if (idString == null && itemId > 0) {
+            return String.format("item_%02d", itemId);
+        }
+        return idString;
+    }
+
+    public void setIdString(String idString) {
+        this.idString = idString;
+    }
+
+    public String getCanteenId() {
+        return canteenId;
+    }
+
+    public void setCanteenId(String canteenId) {
+        this.canteenId = canteenId;
     }
 
     public int getItemId() {

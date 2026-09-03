@@ -71,6 +71,41 @@ public class DBInit {
                         } catch (Exception updateEx) {
                             Log.d(TAG, "Short college ID migration note: " + updateEx.getMessage());
                         }
+
+                        // Ensure app_version_config table exists and is seeded
+                        try (Statement stmt = conn.createStatement()) {
+                            stmt.executeUpdate("CREATE TABLE IF NOT EXISTS app_version_config (" +
+                                    "id INT PRIMARY KEY AUTO_INCREMENT, " +
+                                    "platform VARCHAR(20) NOT NULL UNIQUE, " +
+                                    "min_version_code INT NOT NULL DEFAULT 1, " +
+                                    "min_version_name VARCHAR(20) NOT NULL DEFAULT '1.0', " +
+                                    "latest_version_code INT NOT NULL DEFAULT 1, " +
+                                    "latest_version_name VARCHAR(20) NOT NULL DEFAULT '1.0', " +
+                                    "is_force_update BOOLEAN NOT NULL DEFAULT FALSE, " +
+                                    "update_title VARCHAR(150) NOT NULL DEFAULT 'App Update Required', " +
+                                    "update_message TEXT NOT NULL, " +
+                                    "update_url VARCHAR(500) NULL, " +
+                                    "updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)");
+                            stmt.executeUpdate("INSERT IGNORE INTO app_version_config (id, platform, min_version_code, min_version_name, latest_version_code, latest_version_name, is_force_update, update_title, update_message, update_url) VALUES " +
+                                    "(1, 'android', 1, '1.0', 1, '1.0', FALSE, 'App Update Required', 'A new version of AppEtite is available with essential menu availability and ordering updates. Please update to continue.', 'https://github.com/StarShree/AppEtiteApp/releases')");
+                        } catch (Exception verEx) {
+                            Log.d(TAG, "App version table note: " + verEx.getMessage());
+                        }
+
+                        // Seed menu items for College 2 and College 3 if they don't exist yet
+                        try (Statement stmt = conn.createStatement()) {
+                            stmt.executeUpdate("INSERT IGNORE INTO menu_items (id, college_id, canteen_id, name, description, price, category, image_url, is_available, is_veg) VALUES " +
+                                    "('item_09', 'col_2', 'canteen_2_1', 'Classic Belgian Waffles', 'Golden malted waffles topped with maple syrup & berries', 95.00, 'Breakfast', 'https://images.unsplash.com/photo-1562376552-0d160a2f238d?w=500', 1, 1), " +
+                                    "('item_10', 'col_2', 'canteen_2_1', 'Gourmet Veggie Burger', 'Herb-roasted portobello & black bean patty with aged cheddar', 130.00, 'Lunch', 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500', 1, 1), " +
+                                    "('item_11', 'col_2', 'canteen_2_1', 'Iced Mango Passion Cooler', 'Fresh Alphonso mango puree with passion fruit & mint leaves', 80.00, 'Beverages', 'https://images.unsplash.com/photo-1505252585461-04db1eb84625?w=500', 1, 1), " +
+                                    "('item_12', 'col_2', 'canteen_2_1', 'Loaded Cheese Nachos', 'Crisp tortilla chips topped with melted jalapeño queso & pico de gallo', 110.00, 'Snacks', 'https://images.unsplash.com/photo-1513456852971-30c0b8199d4d?w=500', 1, 1), " +
+                                    "('item_13', 'col_3', 'canteen_3_1', 'Crispy Truffle Chicken Burger', 'Panko-crusted chicken fillet with melted Monterey Jack, truffle aioli on toasted brioche', 145.00, 'Lunch', 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500', 1, 0), " +
+                                    "('item_14', 'col_3', 'canteen_3_1', 'Iced Taro Brown Sugar Boba', 'Velvety taro milk tea layered with slow-cooked brown sugar boba pearls', 95.00, 'Beverages', 'https://images.unsplash.com/photo-1558857563-b37cf05d8a58?w=500', 1, 1), " +
+                                    "('item_15', 'col_3', 'canteen_3_1', 'Supreme Cheesy Sourdough Pizza', 'Hand-tossed crust with mozzarella, smoked provolone, roasted garlic & basil', 180.00, 'Lunch', 'https://images.unsplash.com/photo-1604382354936-07c5d9983bd3?w=500', 1, 1), " +
+                                    "('item_16', 'col_3', 'canteen_3_1', 'Golden Seasoned Curly Fries', 'Spiral-cut potatoes dusted in paprika, garlic herbs & house fry dip', 75.00, 'Snacks', 'https://images.unsplash.com/photo-1573080496219-bb080dd4f877?w=500', 1, 1)");
+                        } catch (Exception itemEx) {
+                            Log.d(TAG, "Seed menu items note: " + itemEx.getMessage());
+                        }
                     }
                 }
             } catch (Exception e) {

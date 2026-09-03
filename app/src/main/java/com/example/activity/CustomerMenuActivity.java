@@ -77,12 +77,10 @@ public class CustomerMenuActivity extends AppCompatActivity {
     private Order activeTrackerOrder;
 
     // Top Bar & Navigation
-    private MaterialCardView btnToggleTheme;
+    private MaterialCardView btnToggleTheme, btnCartHeader, btnChangeCollegeCanteen, btnRefreshCustomer;
     private ImageView ivThemeIconCustomer;
-    private View btnCartHeader;
     private TextView tvCartBadge;
     private MaterialCardView btnLogoutCustomer;
-    private MaterialCardView btnChangeCollegeCanteen;
     private TextView tvActiveCollegeBar, tvActiveCanteenBar;
 
     // Tabs
@@ -167,6 +165,7 @@ public class CustomerMenuActivity extends AppCompatActivity {
             @Override
             public void run() {
                 syncOrdersWithKitchen(false);
+                syncMenuAvailabilitySilent();
                 liveSyncHandler.postDelayed(this, 3500);
             }
         };
@@ -175,6 +174,7 @@ public class CustomerMenuActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        loadMenu();
         if (liveSyncRunnable != null) {
             liveSyncHandler.removeCallbacks(liveSyncRunnable);
             liveSyncHandler.postDelayed(liveSyncRunnable, 500);
@@ -231,8 +231,16 @@ public class CustomerMenuActivity extends AppCompatActivity {
         btnCartHeader = findViewById(R.id.btnCartHeader);
         tvCartBadge = findViewById(R.id.tvCartBadge);
         btnChangeCollegeCanteen = findViewById(R.id.btnChangeCollegeCanteen);
+        btnRefreshCustomer = findViewById(R.id.btnRefreshCustomer);
         tvActiveCollegeBar = findViewById(R.id.tvActiveCollegeBar);
         tvActiveCanteenBar = findViewById(R.id.tvActiveCanteenBar);
+
+        if (btnRefreshCustomer != null) {
+            btnRefreshCustomer.setOnClickListener(v -> {
+                Toast.makeText(this, "Refreshing menu & stock...", Toast.LENGTH_SHORT).show();
+                loadMenu();
+            });
+        }
 
         layoutMenuTab = findViewById(R.id.layoutMenuTab);
         layoutTokensTab = findViewById(R.id.layoutTokensTab);
@@ -566,7 +574,7 @@ public class CustomerMenuActivity extends AppCompatActivity {
         if (tvLiveSyncStatus != null && userInitiated) {
             tvLiveSyncStatus.setText("Syncing with Kitchen orders table...");
         }
-        DatabaseExecutor.execute(() -> orderDao.getCustomerOrders(userId, userIdString), new DatabaseExecutor.Callback<List<Order>>() {
+        DatabaseExecutor.execute(() -> orderDao.getCustomerOrders(userId, userIdString, userName), new DatabaseExecutor.Callback<List<Order>>() {
             @Override
             public void onSuccess(List<Order> orders) {
                 if (tvLiveSyncStatus != null) {
@@ -664,19 +672,24 @@ public class CustomerMenuActivity extends AppCompatActivity {
         if (o == null) return;
         tvLiveTokenPill.setText(o.getTokenString() != null ? "#" + o.getTokenString() : "#TK-" + o.getTokenNumber());
         tvLiveOrderCanteen.setText(o.getCanteenName() != null ? o.getCanteenName() : canteenName);
-        tvLiveOrderStatusBadge.setText(o.getOrderStatus().toUpperCase());
 
-        String s = o.getOrderStatus().toUpperCase();
+        String s = o.getOrderStatus() != null ? o.getOrderStatus().toUpperCase() : "PLACED";
+        applyStatusBadge(tvLiveOrderStatusBadge, s);
+
         if ("PLACED".equals(s)) {
-            tvLiveOrderStepper.setText("● Placed ➔ ○ Accepted ➔ ○ Preparing ➔ ○ Ready for Pickup");
+            tvLiveOrderStepper.setText("● Placed ➔ ○ Accepted ➔ ○ Cooking ➔ ○ Ready for Pickup");
         } else if ("ACCEPTED".equals(s)) {
-            tvLiveOrderStepper.setText("✔ Placed ➔ ● Accepted ➔ ○ Preparing ➔ ○ Ready for Pickup");
+            tvLiveOrderStepper.setText("✔ Placed ➔ ● Accepted ➔ ○ Cooking ➔ ○ Ready for Pickup");
         } else if ("PREPARING".equals(s) || "COOKING".equals(s)) {
-            tvLiveOrderStepper.setText("✔ Placed ➔ ✔ Accepted ➔ ● Preparing ➔ ○ Ready for Pickup");
+            tvLiveOrderStepper.setText("✔ Placed ➔ ✔ Accepted ➔ ● Cooking in Kitchen ➔ ○ Ready for Pickup");
         } else if ("READY".equals(s) || "READY_FOR_PICKUP".equals(s)) {
-            tvLiveOrderStepper.setText("✔ Placed ➔ ✔ Accepted ➔ ✔ Preparing ➔ ★ READY FOR PICKUP!");
+            tvLiveOrderStepper.setText("✔ Placed ➔ ✔ Accepted ➔ ✔ Cooked ➔ ★ READY FOR PICKUP (Collect Now!)");
+        } else if ("COMPLETED".equals(s)) {
+            tvLiveOrderStepper.setText("✔ Completed & Picked Up • Thank you!");
+        } else if ("CANCELLED".equals(s)) {
+            tvLiveOrderStepper.setText("✖ Order Cancelled");
         } else {
-            tvLiveOrderStepper.setText("✔ Completed & Picked Up");
+            tvLiveOrderStepper.setText("Status: " + s);
         }
         btnSimulateProgress.setText("Track Status");
         btnSimulateProgress.setOnClickListener(v -> showOrderTrackerDialog(o));
@@ -688,7 +701,58 @@ public class CustomerMenuActivity extends AppCompatActivity {
         }
 
         BigDecimal amt = o.getFinalAmount() != null ? o.getFinalAmount() : o.getTotalAmount();
-        tvLiveOrderPrice.setText(String.format("$%.2f (%s)", amt, o.getPaymentMethod() != null ? o.getPaymentMethod().replace("_", " ") : "Wallet"));
+        tvLiveOrderPrice.setText(String.format("₹%.2f (%s)", amt, o.getPaymentMethod() != null ? o.getPaymentMethod().replace("_", " ") : "Wallet"));
+    }
+
+    private void applyStatusBadge(TextView tvBadge, String status) {
+        if (tvBadge == null) return;
+        int bgRes;
+        int textColor;
+        String label;
+
+        switch (status.toUpperCase()) {
+            case "ACCEPTED":
+                label = "Accepted";
+                textColor = Color.parseColor("#B45309");
+                bgRes = Color.parseColor("#FEF3C7");
+                break;
+            case "PREPARING":
+            case "COOKING":
+                label = "Cooking";
+                textColor = Color.parseColor("#7E22CE");
+                bgRes = Color.parseColor("#F3E8FF");
+                break;
+            case "READY":
+            case "READY_FOR_PICKUP":
+                label = "READY FOR PICKUP";
+                textColor = Color.parseColor("#047857");
+                bgRes = Color.parseColor("#D1FAE5");
+                break;
+            case "COMPLETED":
+                label = "Completed";
+                textColor = Color.parseColor("#475569");
+                bgRes = Color.parseColor("#F1F5F9");
+                break;
+            case "CANCELLED":
+                label = "Cancelled";
+                textColor = Color.parseColor("#DC2626");
+                bgRes = Color.parseColor("#FEE2E2");
+                break;
+            case "PLACED":
+            default:
+                label = "Order Placed";
+                textColor = Color.parseColor("#0369A1");
+                bgRes = Color.parseColor("#E0F2FE");
+                break;
+        }
+
+        tvBadge.setText(label);
+        tvBadge.setTextColor(textColor);
+        GradientDrawable pillBg = new GradientDrawable();
+        pillBg.setShape(GradientDrawable.RECTANGLE);
+        pillBg.setCornerRadius(dpToPx(12));
+        pillBg.setColor(bgRes);
+        tvBadge.setBackground(pillBg);
     }
 
     private void setupWalletSection() {
@@ -845,6 +909,53 @@ public class CustomerMenuActivity extends AppCompatActivity {
         });
     }
 
+    private void syncMenuAvailabilitySilent() {
+        DatabaseExecutor.execute(() -> menuItemDao.getMenuItemsByCollege(collegeId, null), new DatabaseExecutor.Callback<List<MenuItem>>() {
+            @Override
+            public void onSuccess(List<MenuItem> items) {
+                if (items == null || items.isEmpty()) return;
+                boolean hasChanges = false;
+                for (MenuItem remoteItem : items) {
+                    for (MenuItem localItem : allMenuItems) {
+                        boolean match = (remoteItem.getItemId() > 0 && remoteItem.getItemId() == localItem.getItemId()) ||
+                                (remoteItem.getIdString() != null && remoteItem.getIdString().equalsIgnoreCase(localItem.getIdString())) ||
+                                (remoteItem.getName() != null && remoteItem.getName().equalsIgnoreCase(localItem.getName()));
+                        if (match) {
+                            if (localItem.isAvailable() != remoteItem.isAvailable()) {
+                                localItem.setAvailable(remoteItem.isAvailable());
+                                hasChanges = true;
+                            }
+                            break;
+                        }
+                    }
+                }
+                if (hasChanges) {
+                    applyFilters();
+                    // Prune sold-out items from cart tray if any
+                    Map<Integer, Integer> cart = menuAdapter.getCartMap();
+                    if (cart != null && !cart.isEmpty()) {
+                        List<String> removedNames = new ArrayList<>();
+                        for (Map.Entry<Integer, Integer> entry : new java.util.HashMap<>(cart).entrySet()) {
+                            MenuItem mi = menuAdapter.getItemById(entry.getKey());
+                            if (mi != null && !mi.isAvailable()) {
+                                removedNames.add(mi.getName());
+                                menuAdapter.updateItemQuantity(mi.getItemId(), 0);
+                            }
+                        }
+                        if (!removedNames.isEmpty()) {
+                            Toast.makeText(CustomerMenuActivity.this, "Item(s) now Sold Out and removed from tray: " + android.text.TextUtils.join(", ", removedNames), Toast.LENGTH_LONG).show();
+                        }
+                    }
+                }
+            }
+
+            @Override
+            public void onError(Exception e) {
+                // Background silent poll
+            }
+        });
+    }
+
     private void applyFilters() {
         displayedMenuItems.clear();
         for (int i = 0; i < allMenuItems.size(); i++) {
@@ -884,7 +995,7 @@ public class CustomerMenuActivity extends AppCompatActivity {
      */
     private void loadTokensTabContent() {
         layoutTokensContainer.removeAllViews();
-        DatabaseExecutor.execute(() -> orderDao.getCustomerOrders(userId, userIdString), new DatabaseExecutor.Callback<List<Order>>() {
+        DatabaseExecutor.execute(() -> orderDao.getCustomerOrders(userId, userIdString, userName), new DatabaseExecutor.Callback<List<Order>>() {
             @Override
             public void onSuccess(List<Order> orders) {
                 int liveCount = 0;
@@ -1145,6 +1256,24 @@ public class CustomerMenuActivity extends AppCompatActivity {
             return;
         }
 
+        // Validate availability of all cart items
+        List<String> soldOutItems = new ArrayList<>();
+        for (Integer itemId : new ArrayList<>(cart.keySet())) {
+            MenuItem mi = menuAdapter.getItemById(itemId);
+            if (mi != null && !mi.isAvailable()) {
+                soldOutItems.add(mi.getName());
+                menuAdapter.updateItemQuantity(itemId, 0);
+            }
+        }
+        if (!soldOutItems.isEmpty()) {
+            Toast.makeText(this, "Sold out items removed from tray: " + android.text.TextUtils.join(", ", soldOutItems), Toast.LENGTH_LONG).show();
+            cart = menuAdapter.getCartMap();
+            if (cart == null || cart.isEmpty()) {
+                Toast.makeText(this, "Cart is now empty.", Toast.LENGTH_SHORT).show();
+                return;
+            }
+        }
+
         BottomSheetDialog bottomSheet = new BottomSheetDialog(this);
         View sheetView = LayoutInflater.from(this).inflate(R.layout.dialog_cart_sheet, null);
         bottomSheet.setContentView(sheetView);
@@ -1216,6 +1345,18 @@ public class CustomerMenuActivity extends AppCompatActivity {
     private void executeOrderPlacement(BottomSheetDialog cartSheet, String instructions, String paymentMethod) {
         Map<Integer, Integer> cart = menuAdapter.getCartMap();
         if (cart == null || cart.isEmpty()) return;
+
+        // Pre-order check: Ensure no item has been made unavailable in the database
+        for (Map.Entry<Integer, Integer> entry : cart.entrySet()) {
+            if (entry.getValue() > 0) {
+                MenuItem item = menuAdapter.getItemById(entry.getKey());
+                if (item != null && !item.isAvailable()) {
+                    Toast.makeText(this, "'" + item.getName() + "' is sold out and cannot be ordered.", Toast.LENGTH_LONG).show();
+                    cartSheet.dismiss();
+                    return;
+                }
+            }
+        }
 
         List<OrderItem> orderItems = new ArrayList<>();
         for (Map.Entry<Integer, Integer> entry : cart.entrySet()) {
@@ -1328,7 +1469,7 @@ public class CustomerMenuActivity extends AppCompatActivity {
         });
 
         btnTrackerRefresh.setOnClickListener(v -> {
-            DatabaseExecutor.execute(() -> orderDao.getCustomerOrders(userId, userIdString), new DatabaseExecutor.Callback<List<Order>>() {
+            DatabaseExecutor.execute(() -> orderDao.getCustomerOrders(userId, userIdString, userName), new DatabaseExecutor.Callback<List<Order>>() {
                 @Override
                 public void onSuccess(List<Order> orders) {
                     if (orders != null) {

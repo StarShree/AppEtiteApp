@@ -367,6 +367,22 @@ public class UserDao {
                     }
                 } catch (Exception ignored) {}
 
+                // Validate collegeIdStr against colleges(id) to satisfy foreign key fk_cu_college
+                if (collegeIdStr != null) {
+                    try (PreparedStatement chk = conn.prepareStatement("SELECT id FROM colleges WHERE id = ? OR id = ? OR id = ? OR code = ? LIMIT 1")) {
+                        int num = College.codeToNumericId(collegeIdStr);
+                        chk.setString(1, collegeIdStr);
+                        chk.setString(2, "col_" + num);
+                        chk.setString(3, String.valueOf(num));
+                        chk.setString(4, collegeIdStr);
+                        try (ResultSet rs = chk.executeQuery()) {
+                            if (rs.next()) {
+                                collegeIdStr = rs.getString(1);
+                            }
+                        }
+                    } catch (Exception ignored) {}
+                }
+
                 // Validate assigned_canteen_id against canteens(id) to avoid foreign key errors
                 String validCanteenId = null;
                 if (canteenId != null && !canteenId.trim().isEmpty()) {

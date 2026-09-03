@@ -3,6 +3,7 @@ package com.example.activity;
 import android.content.Intent;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
+import android.net.Uri;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.LinearLayout;
@@ -14,12 +15,14 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 
 import com.example.R;
+import com.example.db.AppVersionDao;
 import com.example.db.CanteenDao;
 import com.example.db.CollegeDao;
 import com.example.db.DBConnection;
 import com.example.db.DBInit;
 import com.example.db.DatabaseExecutor;
 import com.example.db.UserDao;
+import com.example.model.AppVersionConfig;
 import com.example.model.Canteen;
 import com.example.model.College;
 import com.example.model.User;
@@ -55,6 +58,7 @@ public class LoginActivity extends AppCompatActivity {
     private final UserDao userDao = new UserDao();
     private final CollegeDao collegeDao = new CollegeDao();
     private final CanteenDao canteenDao = new CanteenDao();
+    private final AppVersionDao appVersionDao = new AppVersionDao();
     private final List<College> availableColleges = new ArrayList<>();
     private final List<Canteen> availableCanteens = new ArrayList<>();
     private int selectedCollegeIndex = 0;
@@ -84,6 +88,13 @@ public class LoginActivity extends AppCompatActivity {
         // Background Cloud SQL connectivity probe & schema sync
         DBInit.initializeDatabaseAsync(this);
         checkDatabaseConnectivity();
+        checkAppVersionFromDatabase();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        checkAppVersionFromDatabase();
     }
 
     private void setupThemeToggle() {
@@ -638,6 +649,67 @@ public class LoginActivity extends AppCompatActivity {
                 }
             });
         });
+    }
+
+    /**
+     * Queries app_version_config from Cloud SQL / Local store and validates
+     * whether this build meets the minimum required app version.
+     */
+    private void checkAppVersionFromDatabase() {
+        DatabaseExecutor.execute(() -> appVersionDao.getVersionConfig("android"), new DatabaseExecutor.Callback<AppVersionConfig>() {
+            @Override
+            public void onSuccess(AppVersionConfig config) {
+                if (config == null || isFinishing()) return;
+
+                int currentVersionCode = com.example.BuildConfig.VERSION_CODE;
+                String currentVersionName = com.example.BuildConfig.VERSION_NAME;
+
+                if (config.isUpdateRequired(currentVersionCode)) {
+                    // Mandatory Force Update Dialog - Blocks using the app until updated!
+                    new MaterialAlertDialogBuilder(LoginActivity.this)
+                            .setTitle(config.getUpdateTitle())
+                            .setMessage(config.getUpdateMessage() + "\n\n"
+                                    + "Current Version: v" + currentVersionName + " (Build " + currentVersionCode + ")\n"
+                                    + "Required Version: v" + config.getMinVersionName() + " (Build " + config.getMinVersionCode() + ")\n\n"
+                                    + "Please update to the latest version to access campus dining.")
+                            .setCancelable(false)
+                            .setPositiveButton("Update Now", (dialog, which) -> {
+                                openUpdateUrl(config.getUpdateUrl());
+                            })
+                            .setNegativeButton("Exit App", (dialog, which) -> {
+                                finishAffinity();
+                            })
+                            .show();
+
+                    // Block login interaction until updated
+                    btnLogin.setEnabled(false);
+                    btnLogin.setText("App Update Required");
+                } else if (config.isUpdateRecommended(currentVersionCode)) {
+                    // Optional Update Announcement
+                    new MaterialAlertDialogBuilder(LoginActivity.this)
+                            .setTitle("New Update Available")
+                            .setMessage("A new version of AppEtite (v" + config.getLatestVersionName() + ") is available with the latest features & dining improvements.")
+                            .setPositiveButton("Update Now", (dialog, which) -> openUpdateUrl(config.getUpdateUrl()))
+                            .setNegativeButton("Later", null)
+                            .show();
+                }
+            }
+
+            @Override
+            public void onError(Exception e) {
+                android.util.Log.w("LoginActivity", "App version check error: " + e.getMessage());
+            }
+        });
+    }
+
+    private void openUpdateUrl(String url) {
+        String targetUrl = (url != null && !url.trim().isEmpty()) ? url : "https://github.com/StarShree/AppEtiteApp/releases";
+        try {
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl));
+            startActivity(intent);
+        } catch (Exception e) {
+            Toast.makeText(this, "Could not open browser: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        }
     }
 
     private void setLoading(boolean loading) {

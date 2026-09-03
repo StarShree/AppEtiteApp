@@ -27,9 +27,21 @@ public class AdminMenuAdapter extends RecyclerView.Adapter<AdminMenuAdapter.Admi
 
     private final List<MenuItem> items = new ArrayList<>();
     private final MenuAdminListener listener;
+    private boolean allowDelete = true;
 
     public AdminMenuAdapter(MenuAdminListener listener) {
         this.listener = listener;
+        this.allowDelete = true;
+    }
+
+    public AdminMenuAdapter(MenuAdminListener listener, boolean allowDelete) {
+        this.listener = listener;
+        this.allowDelete = allowDelete;
+    }
+
+    public void setAllowDelete(boolean allowDelete) {
+        this.allowDelete = allowDelete;
+        notifyDataSetChanged();
     }
 
     public void setItems(List<MenuItem> newItems) {
@@ -61,6 +73,7 @@ public class AdminMenuAdapter extends RecyclerView.Adapter<AdminMenuAdapter.Admi
     class AdminViewHolder extends RecyclerView.ViewHolder {
         ShapeableImageView ivAdminItemImage;
         TextView tvAdminItemName, tvAdminItemCat;
+        TextView tvAdminAvailabilityStatus, tvAdminAvailabilitySubtitle;
         MaterialSwitch switchAvailability;
         ImageButton btnDeleteMenuItem;
 
@@ -69,6 +82,8 @@ public class AdminMenuAdapter extends RecyclerView.Adapter<AdminMenuAdapter.Admi
             ivAdminItemImage = itemView.findViewById(R.id.ivAdminItemImage);
             tvAdminItemName = itemView.findViewById(R.id.tvAdminItemName);
             tvAdminItemCat = itemView.findViewById(R.id.tvAdminItemCat);
+            tvAdminAvailabilityStatus = itemView.findViewById(R.id.tvAdminAvailabilityStatus);
+            tvAdminAvailabilitySubtitle = itemView.findViewById(R.id.tvAdminAvailabilitySubtitle);
             switchAvailability = itemView.findViewById(R.id.switchAvailability);
             btnDeleteMenuItem = itemView.findViewById(R.id.btnDeleteMenuItem);
         }
@@ -88,20 +103,47 @@ public class AdminMenuAdapter extends RecyclerView.Adapter<AdminMenuAdapter.Admi
                 ivAdminItemImage.setImageResource(R.drawable.ic_launcher_background);
             }
 
-            // Temporarily detach listener to avoid triggering during recycle
-            switchAvailability.setOnCheckedChangeListener(null);
-            switchAvailability.setChecked(item.isAvailable());
-            switchAvailability.setOnCheckedChangeListener((buttonView, isChecked) -> {
-                if (listener != null) {
-                    listener.onAvailabilityToggled(item, isChecked);
-                }
-            });
-
+            btnDeleteMenuItem.setVisibility(allowDelete ? View.VISIBLE : View.GONE);
             btnDeleteMenuItem.setOnClickListener(v -> {
                 if (listener != null) {
                     listener.onItemDeleteRequested(item);
                 }
             });
+
+            updateStatusUi(item.isAvailable());
+
+            // Temporarily detach listener to avoid triggering during recycle
+            switchAvailability.setOnCheckedChangeListener(null);
+            switchAvailability.setChecked(item.isAvailable());
+            switchAvailability.setOnCheckedChangeListener((buttonView, isChecked) -> {
+                item.setAvailable(isChecked);
+                updateStatusUi(isChecked);
+                if (listener != null) {
+                    listener.onAvailabilityToggled(item, isChecked);
+                }
+            });
+        }
+
+        private void updateStatusUi(boolean isAvailable) {
+            if (isAvailable) {
+                itemView.setAlpha(1.0f);
+                if (tvAdminAvailabilityStatus != null) {
+                    tvAdminAvailabilityStatus.setText("🟢 In Stock & Available");
+                    tvAdminAvailabilityStatus.setTextColor(android.graphics.Color.parseColor("#10B981"));
+                }
+                if (tvAdminAvailabilitySubtitle != null) {
+                    tvAdminAvailabilitySubtitle.setText("Live on student menu & orderable");
+                }
+            } else {
+                itemView.setAlpha(0.72f);
+                if (tvAdminAvailabilityStatus != null) {
+                    tvAdminAvailabilityStatus.setText("🔴 Unavailable (Sold Out)");
+                    tvAdminAvailabilityStatus.setTextColor(android.graphics.Color.parseColor("#EF4444"));
+                }
+                if (tvAdminAvailabilitySubtitle != null) {
+                    tvAdminAvailabilitySubtitle.setText("Marked sold out • Ordering blocked for students");
+                }
+            }
         }
     }
 }

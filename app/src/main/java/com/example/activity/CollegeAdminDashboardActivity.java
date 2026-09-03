@@ -150,7 +150,7 @@ public class CollegeAdminDashboardActivity extends AppCompatActivity {
             @Override
             public void onAvailabilityToggled(MenuItem item, boolean isAvailable) {
                 DatabaseExecutor.execute(
-                        () -> menuItemDao.updateMenuItemAvailability(item.getItemId(), isAvailable),
+                        () -> menuItemDao.updateMenuItemAvailability(item.getIdString(), item.getItemId(), isAvailable),
                         new DatabaseExecutor.Callback<Boolean>() {
                             @Override
                             public void onSuccess(Boolean success) {

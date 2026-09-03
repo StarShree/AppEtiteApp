@@ -49,6 +49,22 @@
                 android:text="Fast Food"
                 android:textColor="@color/white"
                 android:textSize="9.5sp" />
+
+            <!-- Sold Out / Unavailable overlay badge -->
+            <TextView
+                android:id="@+id/tvItemUnavailableBadge"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_gravity="bottom|center_horizontal"
+                android:background="#D9DC2626"
+                android:fontFamily="sans-serif-black"
+                android:gravity="center"
+                android:paddingTop="3dp"
+                android:paddingBottom="3dp"
+                android:text="SOLD OUT"
+                android:textColor="@color/white"
+                android:textSize="10sp"
+                android:visibility="gone" />
         </FrameLayout>
 
         <!-- Details -->

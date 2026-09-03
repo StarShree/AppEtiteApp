@@ -28,9 +28,9 @@ public class TestUserDaoIntegration {
         student.setPasswordHash("Pass1234!");
         student.setRole("CUSTOMER"); // Maps to campus_users
         student.setCollegeId(2);
-        student.setCollegeIdString("col_2"); // COEP Technological University
-        student.setAssignedCanteenId("cant_3"); // Or any canteen
-        student.setCampusIdNumber("COEP-" + timestamp);
+        student.setCollegeIdString("IMP"); // Imperial College of Engineering
+        student.setAssignedCanteenId("canteen_2_1"); // Imperial North Food Court
+        student.setCampusIdNumber("IMP-" + timestamp);
 
         boolean inserted = userDao.insertUser(student);
         System.err.println("TEST_DAO_STUDENT_INSERT: " + inserted + " | Err: " + userDao.getLastErrorMessage());

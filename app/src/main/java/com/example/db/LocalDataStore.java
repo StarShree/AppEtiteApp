@@ -1,5 +1,6 @@
 package com.example.db;
 
+import com.example.model.AppVersionConfig;
 import com.example.model.Canteen;
 import com.example.model.College;
 import com.example.model.MenuItem;
@@ -27,6 +28,7 @@ public class LocalDataStore {
     private final List<User> users = new ArrayList<>();
     private final List<MenuItem> menuItems = new ArrayList<>();
     private final List<Order> orders = new ArrayList<>();
+    private AppVersionConfig appVersionConfig = new AppVersionConfig(1, "android", 1, "1.0", 1, "1.0", false, "App Update Required", "A new version of AppEtite is available with essential menu availability and ordering updates. Please update to continue.", "https://github.com/StarShree/AppEtiteApp/releases");
 
     private final AtomicInteger userIdCounter = new AtomicInteger(100);
     private final AtomicInteger orderIdCounter = new AtomicInteger(100);
@@ -333,8 +335,16 @@ public class LocalDataStore {
     }
 
     public synchronized boolean updateMenuItemAvailability(int itemId, boolean isAvailable) {
+        return updateMenuItemAvailability(null, itemId, isAvailable);
+    }
+
+    public synchronized boolean updateMenuItemAvailability(String idString, int itemId, boolean isAvailable) {
         for (MenuItem m : menuItems) {
-            if (m.getItemId() == itemId) {
+            boolean match = (itemId > 0 && m.getItemId() == itemId) ||
+                    (idString != null && (idString.equalsIgnoreCase(m.getIdString())
+                            || idString.equalsIgnoreCase("item_" + m.getItemId())
+                            || idString.equalsIgnoreCase(String.format("item_%02d", m.getItemId()))));
+            if (match) {
                 m.setAvailable(isAvailable);
                 return true;
             }
@@ -393,9 +403,16 @@ public class LocalDataStore {
     }
 
     public synchronized List<Order> getCustomerOrders(int userId) {
+        return getCustomerOrders(userId, null, null);
+    }
+
+    public synchronized List<Order> getCustomerOrders(int userId, String userIdStr, String userName) {
         List<Order> result = new ArrayList<>();
         for (Order o : orders) {
-            if (o.getUserId() == userId) {
+            boolean match = (userId > 0 && o.getUserId() == userId) ||
+                    (userIdStr != null && (userIdStr.equalsIgnoreCase(o.getUserIdString()) || userIdStr.equalsIgnoreCase("user_" + o.getUserId()))) ||
+                    (userName != null && o.getUserName() != null && userName.equalsIgnoreCase(o.getUserName()));
+            if (match) {
                 result.add(o);
             }
         }
@@ -409,9 +426,33 @@ public class LocalDataStore {
         return copy;
     }
 
+    public synchronized void createOrUpdateOrder(Order order) {
+        if (order == null) return;
+        for (int i = 0; i < orders.size(); i++) {
+            Order existing = orders.get(i);
+            boolean match = (existing.getOrderId() > 0 && existing.getOrderId() == order.getOrderId()) ||
+                    (existing.getIdString() != null && existing.getIdString().equalsIgnoreCase(order.getIdString())) ||
+                    (existing.getOrderNumber() != null && existing.getOrderNumber().equalsIgnoreCase(order.getOrderNumber())) ||
+                    (existing.getTokenString() != null && existing.getTokenString().equalsIgnoreCase(order.getTokenString()));
+            if (match) {
+                orders.set(i, order);
+                return;
+            }
+        }
+        orders.add(order);
+    }
+
     public synchronized boolean updateOrderStatus(int orderId, String newStatus) {
+        return updateOrderStatus(null, "ORD-" + orderId, "T-" + orderId, newStatus) ||
+                updateOrderStatus(null, String.valueOf(orderId), null, newStatus);
+    }
+
+    public synchronized boolean updateOrderStatus(String idString, String orderNumber, String tokenNumber, String newStatus) {
         for (Order o : orders) {
-            if (o.getOrderId() == orderId) {
+            boolean match = (idString != null && !idString.isEmpty() && idString.equalsIgnoreCase(o.getIdString())) ||
+                    (orderNumber != null && !orderNumber.isEmpty() && (orderNumber.equalsIgnoreCase(o.getOrderNumber()) || orderNumber.replaceAll("\\D+", "").equals(String.valueOf(o.getOrderId())))) ||
+                    (tokenNumber != null && !tokenNumber.isEmpty() && tokenNumber.equalsIgnoreCase(o.getTokenString()));
+            if (match) {
                 o.setOrderStatus(newStatus);
                 return true;
             }
@@ -453,5 +494,20 @@ public class LocalDataStore {
 
         orders.add(order);
         return newOrderId;
+    }
+
+    public synchronized AppVersionConfig getAppVersionConfig(String platform) {
+        if (appVersionConfig == null) {
+            appVersionConfig = new AppVersionConfig(1, "android", 1, "1.0", 1, "1.0", false, "App Update Required", "A new version of AppEtite is available with essential menu availability and ordering updates. Please update to continue.", "https://github.com/StarShree/AppEtiteApp/releases");
+        }
+        return appVersionConfig;
+    }
+
+    public synchronized boolean updateAppVersionConfig(AppVersionConfig config) {
+        if (config != null) {
+            this.appVersionConfig = config;
+            return true;
+        }
+        return false;
     }
 }

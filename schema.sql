@@ -173,6 +173,21 @@ CREATE TABLE IF NOT EXISTS order_items (
         ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- 8. APP VERSION CONFIG TABLE (For Mandatory App Update Checks)
+CREATE TABLE IF NOT EXISTS app_version_config (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    platform VARCHAR(20) NOT NULL DEFAULT 'android',
+    min_version_code INT NOT NULL DEFAULT 1,
+    min_version_name VARCHAR(20) NOT NULL DEFAULT '1.0',
+    latest_version_code INT NOT NULL DEFAULT 1,
+    latest_version_name VARCHAR(20) NOT NULL DEFAULT '1.0',
+    is_force_update BOOLEAN NOT NULL DEFAULT FALSE,
+    update_title VARCHAR(150) NOT NULL DEFAULT 'App Update Required',
+    update_message TEXT NOT NULL,
+    update_url VARCHAR(500) NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ==========================================================
 -- INDEXES FOR MAXIMUM QUERY PERFORMANCE
 -- ==========================================================
@@ -225,3 +240,8 @@ INSERT IGNORE INTO college_admins (admin_id, id, name, email, password_hash, pho
 INSERT IGNORE INTO super_admins (super_admin_id, id, name, email, password_hash, phone_number, permission_level, status) VALUES
 (1, 'user_super_1', 'Dr. Sarah Vance', 'sarah.vance@appetite.io', 'Admin@123', '+1 555-0401', 'SUPER_ACCESS_ALL', 'ACTIVE'),
 (2, 'user_super_2', 'Chief System Administrator', 'superadmin@appetite.com', 'Admin@123', '+1 555-0402', 'SUPER_ACCESS_ALL', 'ACTIVE');
+
+-- 5. SEED APP VERSION CONFIGURATION (For Minimum & Latest Version Checks)
+INSERT INTO app_version_config (id, platform, min_version_code, min_version_name, latest_version_code, latest_version_name, is_force_update, update_title, update_message, update_url)
+VALUES (1, 'android', 1, '1.0', 1, '1.0', FALSE, 'App Update Required', 'A new version of AppEtite is available with essential menu availability and ordering updates. Please update to continue.', 'https://github.com/StarShree/AppEtiteApp/releases')
+ON DUPLICATE KEY UPDATE platform=VALUES(platform);

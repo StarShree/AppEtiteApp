@@ -3,7 +3,10 @@ package com.example.activity;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.view.View;
+import android.widget.EditText;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -13,12 +16,15 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.R;
+import com.example.adapter.AdminMenuAdapter;
 import com.example.adapter.KitchenOrderAdapter;
 import com.example.db.CanteenDao;
 import com.example.db.CollegeDao;
 import com.example.db.DatabaseExecutor;
+import com.example.db.MenuItemDao;
 import com.example.db.OrderDao;
 import com.example.model.College;
+import com.example.model.MenuItem;
 import com.example.model.Order;
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.button.MaterialButton;
@@ -35,6 +41,24 @@ public class KitchenDashboardActivity extends AppCompatActivity {
     private RecyclerView rvKitchenOrders;
     private MaterialButton btnRefreshKitchen, btnLogoutKitchen;
     private ProgressBar progressBarKitchen;
+
+    // Tabs & Sections
+    private MaterialButton btnTabKitchenOrders, btnTabKitchenMenu;
+    private View layoutKitchenOrdersSection, layoutKitchenMenuSection;
+    private boolean isMenuTabActive = false;
+
+    // Menu Stock & Availability Section
+    private TextView tvKitchenMenuSubtitle, tvKitchenMenuItemCount, tvEmptyKitchenMenu;
+    private EditText etSearchKitchenMenu;
+    private ChipGroup chipGroupKitchenMenuCats;
+    private ProgressBar progressBarKitchenMenu;
+    private RecyclerView rvKitchenMenu;
+    private AdminMenuAdapter kitchenMenuAdapter;
+    private final MenuItemDao menuItemDao = new MenuItemDao();
+    private final List<MenuItem> allKitchenMenuItems = new ArrayList<>();
+    private final List<MenuItem> displayedKitchenMenuItems = new ArrayList<>();
+    private String activeMenuCategoryFilter = "All";
+    private String activeMenuSearchQuery = "";
 
     private KitchenOrderAdapter kitchenOrderAdapter;
     private final OrderDao orderDao = new OrderDao();
@@ -61,7 +85,9 @@ public class KitchenDashboardActivity extends AppCompatActivity {
         initViews();
         setupToolbar();
         setupRecyclerView();
+        setupMenuRecyclerView();
         setupFilterChips();
+        setupMenuSearchAndFilters();
         loadKitchenOrders(true);
         setupAutoPolling();
     }
@@ -125,10 +151,35 @@ public class KitchenDashboardActivity extends AppCompatActivity {
         btnLogoutKitchen = findViewById(R.id.btnLogoutKitchen);
         progressBarKitchen = findViewById(R.id.progressBarKitchen);
 
+        // Tab views
+        btnTabKitchenOrders = findViewById(R.id.btnTabKitchenOrders);
+        btnTabKitchenMenu = findViewById(R.id.btnTabKitchenMenu);
+        layoutKitchenOrdersSection = findViewById(R.id.layoutKitchenOrdersSection);
+        layoutKitchenMenuSection = findViewById(R.id.layoutKitchenMenuSection);
+
+        // Menu availability views
+        tvKitchenMenuSubtitle = findViewById(R.id.tvKitchenMenuSubtitle);
+        tvKitchenMenuItemCount = findViewById(R.id.tvKitchenMenuItemCount);
+        tvEmptyKitchenMenu = findViewById(R.id.tvEmptyKitchenMenu);
+        etSearchKitchenMenu = findViewById(R.id.etSearchKitchenMenu);
+        chipGroupKitchenMenuCats = findViewById(R.id.chipGroupKitchenMenuCats);
+        progressBarKitchenMenu = findViewById(R.id.progressBarKitchenMenu);
+        rvKitchenMenu = findViewById(R.id.rvKitchenMenu);
+
         String initialCanteenLabel = canteenName != null ? canteenName : "Assigned Canteen Kitchen";
         tvKitchenStaffName.setText(staffName + " • " + initialCanteenLabel);
-        btnRefreshKitchen.setOnClickListener(v -> loadKitchenOrders());
+
+        btnRefreshKitchen.setOnClickListener(v -> {
+            if (isMenuTabActive) {
+                loadKitchenMenu(true);
+            } else {
+                loadKitchenOrders();
+            }
+        });
         btnLogoutKitchen.setOnClickListener(v -> finish());
+
+        btnTabKitchenOrders.setOnClickListener(v -> switchKitchenTab(false));
+        btnTabKitchenMenu.setOnClickListener(v -> switchKitchenTab(true));
     }
 
     private void setupToolbar() {
@@ -177,6 +228,155 @@ public class KitchenDashboardActivity extends AppCompatActivity {
 
         rvKitchenOrders.setLayoutManager(new LinearLayoutManager(this));
         rvKitchenOrders.setAdapter(kitchenOrderAdapter);
+    }
+
+    private void setupMenuRecyclerView() {
+        // Canteen staff toggles availability without deleting dishes
+        kitchenMenuAdapter = new AdminMenuAdapter(new AdminMenuAdapter.MenuAdminListener() {
+            @Override
+            public void onAvailabilityToggled(MenuItem item, boolean isAvailable) {
+                DatabaseExecutor.execute(
+                        () -> menuItemDao.updateMenuItemAvailability(item.getIdString(), item.getItemId(), isAvailable),
+                        new DatabaseExecutor.Callback<Boolean>() {
+                            @Override
+                            public void onSuccess(Boolean success) {
+                                item.setAvailable(isAvailable);
+                                Toast.makeText(KitchenDashboardActivity.this,
+                                        item.getName() + " is now " + (isAvailable ? "🟢 Available" : "🔴 Sold Out"),
+                                        Toast.LENGTH_SHORT).show();
+                            }
+
+                            @Override
+                            public void onError(Exception e) {
+                                Toast.makeText(KitchenDashboardActivity.this,
+                                        "Availability update error: " + e.getMessage(),
+                                        Toast.LENGTH_SHORT).show();
+                            }
+                        }
+                );
+            }
+
+            @Override
+            public void onItemDeleteRequested(MenuItem item) {
+                // Not supported for kitchen operators
+            }
+        }, false); // allowDelete = false
+
+        rvKitchenMenu.setLayoutManager(new LinearLayoutManager(this));
+        rvKitchenMenu.setAdapter(kitchenMenuAdapter);
+    }
+
+    private void setupMenuSearchAndFilters() {
+        etSearchKitchenMenu.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                activeMenuSearchQuery = s != null ? s.toString().trim() : "";
+                applyMenuFilters();
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {}
+        });
+
+        chipGroupKitchenMenuCats.setOnCheckedStateChangeListener((group, checkedIds) -> {
+            if (checkedIds.isEmpty()) return;
+            int checkedId = checkedIds.get(0);
+            if (checkedId == R.id.chipKitchenCatAll) activeMenuCategoryFilter = "All";
+            else if (checkedId == R.id.chipKitchenCatBreakfast) activeMenuCategoryFilter = "Breakfast";
+            else if (checkedId == R.id.chipKitchenCatLunch) activeMenuCategoryFilter = "Lunch";
+            else if (checkedId == R.id.chipKitchenCatBeverages) activeMenuCategoryFilter = "Beverages";
+            else if (checkedId == R.id.chipKitchenCatSnacks) activeMenuCategoryFilter = "Snacks";
+            else if (checkedId == R.id.chipKitchenCatFastFood) activeMenuCategoryFilter = "Fast Food";
+            else if (checkedId == R.id.chipKitchenCatMeals) activeMenuCategoryFilter = "Meals";
+            applyMenuFilters();
+        });
+    }
+
+    private void switchKitchenTab(boolean toMenuTab) {
+        isMenuTabActive = toMenuTab;
+        if (toMenuTab) {
+            layoutKitchenOrdersSection.setVisibility(View.GONE);
+            layoutKitchenMenuSection.setVisibility(View.VISIBLE);
+            btnTabKitchenOrders.setBackgroundTintList(android.content.res.ColorStateList.valueOf(android.graphics.Color.TRANSPARENT));
+            btnTabKitchenOrders.setTextColor(getResources().getColor(R.color.primary));
+            btnTabKitchenOrders.setStrokeColor(android.content.res.ColorStateList.valueOf(getResources().getColor(R.color.primary)));
+            btnTabKitchenOrders.setStrokeWidth(2);
+
+            btnTabKitchenMenu.setBackgroundTintList(android.content.res.ColorStateList.valueOf(getResources().getColor(R.color.primary)));
+            btnTabKitchenMenu.setTextColor(android.graphics.Color.WHITE);
+            btnTabKitchenMenu.setStrokeWidth(0);
+
+            if (allKitchenMenuItems.isEmpty()) {
+                loadKitchenMenu(true);
+            }
+        } else {
+            layoutKitchenOrdersSection.setVisibility(View.VISIBLE);
+            layoutKitchenMenuSection.setVisibility(View.GONE);
+            btnTabKitchenOrders.setBackgroundTintList(android.content.res.ColorStateList.valueOf(getResources().getColor(R.color.primary)));
+            btnTabKitchenOrders.setTextColor(android.graphics.Color.WHITE);
+            btnTabKitchenOrders.setStrokeWidth(0);
+
+            btnTabKitchenMenu.setBackgroundTintList(android.content.res.ColorStateList.valueOf(android.graphics.Color.TRANSPARENT));
+            btnTabKitchenMenu.setTextColor(getResources().getColor(R.color.primary));
+            btnTabKitchenMenu.setStrokeColor(android.content.res.ColorStateList.valueOf(getResources().getColor(R.color.primary)));
+            btnTabKitchenMenu.setStrokeWidth(2);
+        }
+    }
+
+    private void loadKitchenMenu(boolean showLoading) {
+        if (showLoading) {
+            progressBarKitchenMenu.setVisibility(View.VISIBLE);
+        }
+        DatabaseExecutor.execute(() -> menuItemDao.getMenuItemsByCollege(collegeId, null), new DatabaseExecutor.Callback<List<MenuItem>>() {
+            @Override
+            public void onSuccess(List<MenuItem> items) {
+                if (showLoading) {
+                    progressBarKitchenMenu.setVisibility(View.GONE);
+                }
+                allKitchenMenuItems.clear();
+                if (items != null) {
+                    allKitchenMenuItems.addAll(items);
+                }
+                applyMenuFilters();
+            }
+
+            @Override
+            public void onError(Exception e) {
+                if (showLoading) {
+                    progressBarKitchenMenu.setVisibility(View.GONE);
+                    Toast.makeText(KitchenDashboardActivity.this, "Error fetching menu: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                }
+            }
+        });
+    }
+
+    private void applyMenuFilters() {
+        displayedKitchenMenuItems.clear();
+        for (MenuItem item : allKitchenMenuItems) {
+            // Category filter
+            if (!"All".equalsIgnoreCase(activeMenuCategoryFilter)) {
+                if (item.getCategory() == null || !item.getCategory().equalsIgnoreCase(activeMenuCategoryFilter)) {
+                    continue;
+                }
+            }
+            // Search query
+            if (!activeMenuSearchQuery.isEmpty()) {
+                String q = activeMenuSearchQuery.toLowerCase();
+                boolean matchName = item.getName() != null && item.getName().toLowerCase().contains(q);
+                boolean matchCat = item.getCategory() != null && item.getCategory().toLowerCase().contains(q);
+                if (!matchName && !matchCat) {
+                    continue;
+                }
+            }
+            displayedKitchenMenuItems.add(item);
+        }
+
+        kitchenMenuAdapter.setItems(displayedKitchenMenuItems);
+        tvKitchenMenuItemCount.setText(displayedKitchenMenuItems.size() + " Items");
+        tvEmptyKitchenMenu.setVisibility(displayedKitchenMenuItems.isEmpty() ? View.VISIBLE : View.GONE);
     }
 
     private void setupFilterChips() {
@@ -289,6 +489,7 @@ public class KitchenDashboardActivity extends AppCompatActivity {
                 order.setOrderStatus(newStatus);
                 kitchenOrderAdapter.notifyDataSetChanged();
                 updateMetrics();
+                applyCurrentFilter();
                 Toast.makeText(KitchenDashboardActivity.this, "Token #" + order.getTokenString() + " updated to " + newStatus, Toast.LENGTH_SHORT).show();
             }
 
