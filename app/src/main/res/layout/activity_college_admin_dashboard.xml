@@ -17,9 +17,9 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:background="@color/primary"
-            app:subtitle="College Menu &amp; Canteen Management"
-            app:subtitleTextColor="#FFE0D6"
-            app:title="College Admin Console"
+            app:subtitle="College Dining &amp; Item Availability"
+            app:subtitleTextColor="#E0E7FF"
+            app:title="College Admin Dashboard"
             app:titleTextColor="@color/white" />
 
         <!-- User / Action bar -->

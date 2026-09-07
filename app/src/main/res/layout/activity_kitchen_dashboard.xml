@@ -18,7 +18,7 @@
             android:layout_height="wrap_content"
             android:background="@color/primary"
             app:subtitle="Imperial College Kitchen"
-            app:subtitleTextColor="#FFE0D6"
+            app:subtitleTextColor="#E0E7FF"
             app:title="Kitchen Dashboard"
             app:titleTextColor="@color/white" />
 

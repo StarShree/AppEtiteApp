@@ -23,7 +23,7 @@
                 android:layout_height="wrap_content"
                 android:background="@color/primary"
                 app:subtitle="Global Multi-College Control Center"
-                app:subtitleTextColor="#FFE0D6"
+                app:subtitleTextColor="#E0E7FF"
                 app:title="Super Admin Dashboard"
                 app:titleTextColor="@color/white" />
 

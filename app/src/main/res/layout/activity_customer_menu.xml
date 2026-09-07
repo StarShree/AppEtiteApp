@@ -344,7 +344,7 @@
                                     android:paddingEnd="8dp"
                                     android:paddingBottom="3dp"
                                     android:text="Zero Queue Wait Time"
-                                    android:textColor="#FFE0D6"
+                                    android:textColor="#E0E7FF"
                                     android:textSize="10sp" />
                             </LinearLayout>
 
