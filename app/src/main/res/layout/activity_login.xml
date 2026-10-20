@@ -60,7 +60,7 @@
                             android:layout_height="wrap_content"
                             android:layout_marginStart="8dp"
                             android:fontFamily="sans-serif-medium"
-                            android:text="🟢 MySQL: 34.100.184.249:3306"
+                            android:text="🟢 MySQL: 136.64.32.50:3306"
                             android:textColor="@color/white"
                             android:textSize="11.5sp" />
                     </LinearLayout>

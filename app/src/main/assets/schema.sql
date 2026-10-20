@@ -1,7 +1,7 @@
 -- ==========================================================
 -- AppEtite: Smart Campus Dining & Canteen Management System
--- Database Schema for Google Cloud SQL (MySQL 8.0)
--- Host: 34.100.184.249 | Database: AppEtiteDB
+-- Database Schema for MySQL 8.0
+-- Host: 136.64.32.50 | Database: appetitedb
 --
 -- SEPARATE USER ROLE TABLES:
 -- 1. campus_users   (Students, Faculty & Campus Dining Members)

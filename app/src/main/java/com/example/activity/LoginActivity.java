@@ -643,9 +643,9 @@ public class LoginActivity extends AppCompatActivity {
             boolean connected = DBConnection.getInstance().isConnected();
             DatabaseExecutor.runOnUiThread(() -> {
                 if (connected) {
-                    tvDbStatus.setText("Cloud SQL (34.100.184.249) - Online");
+                    tvDbStatus.setText("MySQL (" + DBConnection.getHost() + ") - Online");
                 } else {
-                    tvDbStatus.setText("Cloud SQL Sync Engine - Ready");
+                    tvDbStatus.setText("Database Sync Engine - Ready");
                 }
             });
         });

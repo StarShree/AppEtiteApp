@@ -7,20 +7,20 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 
 /**
- * Thread-safe Singleton managing JDBC connections to Google Cloud SQL (MySQL 8.0).
- * Host: 34.100.184.249 | Database: AppEtiteDB
+ * Thread-safe Singleton managing JDBC connections to MySQL 8.0.
+ * Host: 136.64.32.50 | Database: appetitedb
  */
 public class DBConnection {
     private static final String TAG = "DBConnection";
 
-    // Google Cloud SQL Configuration
-    private static final String HOST = "34.100.184.249";
+    // Database Configuration
+    private static final String HOST = "136.64.32.50";
     private static final String PORT = "3306";
-    private static final String DATABASE = "AppEtiteDB";
+    private static final String DATABASE = "appetitedb";
     private static final String USER = "root";
-    private static final String PASSWORD = "AppEtite123!";
+    private static final String PASSWORD = "appetitedb123";
 
-    // JDBC Connection URL with required flags for Cloud SQL MySQL 8.0
+    // JDBC Connection URL with required flags for MySQL 8.0
     private static final String JDBC_URL = "jdbc:mysql://" + HOST + ":" + PORT + "/" + DATABASE
             + "?useSSL=false&allowPublicKeyRetrieval=true&connectTimeout=6000&socketTimeout=10000&autoReconnect=true";
 

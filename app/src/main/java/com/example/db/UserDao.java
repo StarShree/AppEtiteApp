@@ -410,103 +410,144 @@ public class UserDao {
                 }
 
                 // Route to appropriate dedicated role table
+                int collegeNumeric = 1;
+                if (user.getCollegeId() != null && user.getCollegeId() > 0) {
+                    collegeNumeric = user.getCollegeId();
+                } else if (collegeIdStr != null) {
+                    collegeNumeric = College.codeToNumericId(collegeIdStr);
+                }
+                if (collegeNumeric <= 0) collegeNumeric = 1;
+
                 if ("CUSTOMER".equalsIgnoreCase(appRole) || "STUDENT".equalsIgnoreCase(dbRole)) {
-                    // Exact schema for campus_users (10 columns):
-                    // id, name, email, password_hash, college_id, assigned_canteen_id, campus_id_number, phone_number, wallet_balance, status
-                    String sqlRole = "INSERT INTO campus_users (id, name, email, password_hash, college_id, assigned_canteen_id, campus_id_number, phone_number, wallet_balance, status) " +
-                            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-                    try (PreparedStatement stmt = conn.prepareStatement(sqlRole)) {
+                    // Try with both college_id (INT) and college_id_str (VARCHAR)
+                    String sqlRoleWithBoth = "INSERT INTO campus_users (id, name, email, password_hash, college_id, college_id_str, assigned_canteen_id, campus_id_number, phone_number, wallet_balance, status) " +
+                            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                    try (PreparedStatement stmt = conn.prepareStatement(sqlRoleWithBoth)) {
                         stmt.setString(1, id);
                         stmt.setString(2, name);
                         stmt.setString(3, email);
                         stmt.setString(4, password);
-                        stmt.setString(5, collegeIdStr);
+                        stmt.setInt(5, collegeNumeric);
+                        stmt.setString(6, collegeIdStr);
                         if (validCanteenId != null) {
-                            stmt.setString(6, validCanteenId);
+                            stmt.setString(7, validCanteenId);
                         } else {
-                            stmt.setNull(6, java.sql.Types.VARCHAR);
+                            stmt.setNull(7, java.sql.Types.VARCHAR);
                         }
-                        stmt.setString(7, campusIdNum);
-                        stmt.setString(8, phone);
-                        stmt.setBigDecimal(9, balance);
-                        stmt.setString(10, status);
+                        stmt.setString(8, campusIdNum);
+                        stmt.setString(9, phone);
+                        stmt.setBigDecimal(10, balance);
+                        stmt.setString(11, status);
                         int affected = stmt.executeUpdate();
                         if (affected > 0) {
                             successInCloud = true;
                             Log.i(TAG, "Successfully inserted into campus_users: " + email + " | ID: " + id);
                         }
                     } catch (Exception ex) {
-                        Log.e(TAG, "Insert into campus_users failed: " + ex.getMessage(), ex);
-                        // If foreign key constraint failed on canteen, retry with NULL assigned_canteen_id
-                        if (ex.getMessage() != null && ex.getMessage().contains("fk_cu_canteen")) {
-                            try (PreparedStatement retryStmt = conn.prepareStatement(sqlRole)) {
-                                retryStmt.setString(1, id);
-                                retryStmt.setString(2, name);
-                                retryStmt.setString(3, email);
-                                retryStmt.setString(4, password);
-                                retryStmt.setString(5, collegeIdStr);
-                                retryStmt.setNull(6, java.sql.Types.VARCHAR);
-                                retryStmt.setString(7, campusIdNum);
-                                retryStmt.setString(8, phone);
-                                retryStmt.setBigDecimal(9, balance);
-                                retryStmt.setString(10, status);
-                                if (retryStmt.executeUpdate() > 0) {
-                                    successInCloud = true;
-                                    Log.i(TAG, "Successfully inserted into campus_users after nulling canteen: " + email);
-                                }
-                            } catch (Exception retryEx) {
-                                recordError(retryEx);
+                        // Fallback to standard 10-column schema
+                        String sqlRole = "INSERT INTO campus_users (id, name, email, password_hash, college_id, assigned_canteen_id, campus_id_number, phone_number, wallet_balance, status) " +
+                                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                        try (PreparedStatement retryStmt = conn.prepareStatement(sqlRole)) {
+                            retryStmt.setString(1, id);
+                            retryStmt.setString(2, name);
+                            retryStmt.setString(3, email);
+                            retryStmt.setString(4, password);
+                            retryStmt.setInt(5, collegeNumeric);
+                            retryStmt.setNull(6, java.sql.Types.VARCHAR);
+                            retryStmt.setString(7, campusIdNum);
+                            retryStmt.setString(8, phone);
+                            retryStmt.setBigDecimal(9, balance);
+                            retryStmt.setString(10, status);
+                            if (retryStmt.executeUpdate() > 0) {
+                                successInCloud = true;
+                                Log.i(TAG, "Successfully inserted into campus_users (fallback): " + email);
                             }
-                        } else {
-                            recordError(ex);
+                        } catch (Exception retryEx) {
+                            recordError(retryEx);
+                            Log.e(TAG, "Insert into campus_users failed: " + retryEx.getMessage(), retryEx);
                         }
                     }
                 } else if ("KITCHEN_STAFF".equalsIgnoreCase(appRole) || "VENDOR".equalsIgnoreCase(dbRole)) {
-                    // Exact schema for canteen_staff (9 columns):
-                    // id, name, email, password_hash, college_id, assigned_canteen_id, designation, phone_number, status
-                    String sqlStaff = "INSERT INTO canteen_staff (id, name, email, password_hash, college_id, assigned_canteen_id, designation, phone_number, status) " +
-                            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
-                    try (PreparedStatement stmt = conn.prepareStatement(sqlStaff)) {
+                    String sqlStaffWithBoth = "INSERT INTO canteen_staff (id, name, email, password_hash, college_id, college_id_str, assigned_canteen_id, designation, phone_number, status) " +
+                            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                    try (PreparedStatement stmt = conn.prepareStatement(sqlStaffWithBoth)) {
                         stmt.setString(1, id);
                         stmt.setString(2, name);
                         stmt.setString(3, email);
                         stmt.setString(4, password);
-                        stmt.setString(5, collegeIdStr);
-                        stmt.setString(6, validCanteenId != null ? validCanteenId : "cant_1");
-                        stmt.setString(7, user.getDesignation() != null ? user.getDesignation() : "Kitchen Staff");
-                        stmt.setString(8, phone);
-                        stmt.setString(9, status);
+                        stmt.setInt(5, collegeNumeric);
+                        stmt.setString(6, collegeIdStr);
+                        stmt.setString(7, validCanteenId != null ? validCanteenId : "canteen_1_1");
+                        stmt.setString(8, user.getDesignation() != null ? user.getDesignation() : "Kitchen Staff");
+                        stmt.setString(9, phone);
+                        stmt.setString(10, status);
                         int affected = stmt.executeUpdate();
                         if (affected > 0) {
                             successInCloud = true;
                             Log.i(TAG, "Successfully inserted into canteen_staff: " + email);
                         }
                     } catch (Exception ex) {
-                        recordError(ex);
-                        Log.e(TAG, "Insert into canteen_staff table failed: " + ex.getMessage(), ex);
+                        String sqlStaff = "INSERT INTO canteen_staff (id, name, email, password_hash, college_id, assigned_canteen_id, designation, phone_number, status) " +
+                                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                        try (PreparedStatement stmt = conn.prepareStatement(sqlStaff)) {
+                            stmt.setString(1, id);
+                            stmt.setString(2, name);
+                            stmt.setString(3, email);
+                            stmt.setString(4, password);
+                            stmt.setInt(5, collegeNumeric);
+                            stmt.setString(6, validCanteenId != null ? validCanteenId : "canteen_1_1");
+                            stmt.setString(7, user.getDesignation() != null ? user.getDesignation() : "Kitchen Staff");
+                            stmt.setString(8, phone);
+                            stmt.setString(9, status);
+                            int affected = stmt.executeUpdate();
+                            if (affected > 0) {
+                                successInCloud = true;
+                                Log.i(TAG, "Successfully inserted into canteen_staff (fallback): " + email);
+                            }
+                        } catch (Exception retryEx) {
+                            recordError(retryEx);
+                            Log.e(TAG, "Insert into canteen_staff failed: " + retryEx.getMessage(), retryEx);
+                        }
                     }
                 } else if ("COLLEGE_ADMIN".equalsIgnoreCase(appRole) || "COLLEGE_ADMIN".equalsIgnoreCase(dbRole)) {
-                    // Exact schema for college_admins (8 columns):
-                    // id, name, email, password_hash, college_id, department, phone_number, status
-                    String sqlAdmin = "INSERT INTO college_admins (id, name, email, password_hash, college_id, department, phone_number, status) " +
-                            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
-                    try (PreparedStatement stmt = conn.prepareStatement(sqlAdmin)) {
+                    String sqlAdminWithBoth = "INSERT INTO college_admins (id, name, email, password_hash, college_id, college_id_str, department, phone_number, status) " +
+                            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                    try (PreparedStatement stmt = conn.prepareStatement(sqlAdminWithBoth)) {
                         stmt.setString(1, id);
                         stmt.setString(2, name);
                         stmt.setString(3, email);
                         stmt.setString(4, password);
-                        stmt.setString(5, collegeIdStr);
-                        stmt.setString(6, user.getDepartment() != null ? user.getDepartment() : "Campus Dining Administration");
-                        stmt.setString(7, phone);
-                        stmt.setString(8, status);
+                        stmt.setInt(5, collegeNumeric);
+                        stmt.setString(6, collegeIdStr);
+                        stmt.setString(7, user.getDepartment() != null ? user.getDepartment() : "Campus Dining Administration");
+                        stmt.setString(8, phone);
+                        stmt.setString(9, status);
                         int affected = stmt.executeUpdate();
                         if (affected > 0) {
                             successInCloud = true;
                             Log.i(TAG, "Successfully inserted into college_admins: " + email);
                         }
                     } catch (Exception ex) {
-                        recordError(ex);
-                        Log.e(TAG, "Insert into college_admins table failed: " + ex.getMessage(), ex);
+                        String sqlAdmin = "INSERT INTO college_admins (id, name, email, password_hash, college_id, department, phone_number, status) " +
+                                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+                        try (PreparedStatement stmt = conn.prepareStatement(sqlAdmin)) {
+                            stmt.setString(1, id);
+                            stmt.setString(2, name);
+                            stmt.setString(3, email);
+                            stmt.setString(4, password);
+                            stmt.setInt(5, collegeNumeric);
+                            stmt.setString(6, user.getDepartment() != null ? user.getDepartment() : "Campus Dining Administration");
+                            stmt.setString(7, phone);
+                            stmt.setString(8, status);
+                            int affected = stmt.executeUpdate();
+                            if (affected > 0) {
+                                successInCloud = true;
+                                Log.i(TAG, "Successfully inserted into college_admins (fallback): " + email);
+                            }
+                        } catch (Exception retryEx) {
+                            recordError(retryEx);
+                            Log.e(TAG, "Insert into college_admins failed: " + retryEx.getMessage(), retryEx);
+                        }
                     }
                 } else if ("SUPER_ADMIN".equalsIgnoreCase(appRole) || "SUPER_ADMIN".equalsIgnoreCase(dbRole)) {
                     // Exact schema for super_admins (7 columns):

@@ -1,6 +1,6 @@
 -- ==========================================================
 -- AppEtite: SQL Script for Separate User Role Tables
--- Target: Google Cloud SQL (MySQL 8.0) | Database: AppEtiteDB
+-- Target: MySQL 8.0 | Database: appetitedb
 --
 -- This script creates 4 separate tables:
 --  1. campus_users   (Students, Staff & Campus Dining Patrons)
@@ -14,7 +14,7 @@
 --  - Seeds default demonstration records for each role
 -- ==========================================================
 
-USE AppEtiteDB;
+USE appetitedb;
 
 -- ----------------------------------------------------------
 -- 1. TABLE: campus_users
